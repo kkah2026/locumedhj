@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin · Locum ED HJ</title>
+<style>
+:root{--bg:#f3f7f8;--card:#fff;--ink:#14212b;--muted:#5d6b78;--line:#e1e8ed;--brand:#0f766e;--on:#fff;--bad:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1418;--card:#152027;--ink:#e8eef2;--muted:#93a4b1;--line:#263641;--brand:#2dd4bf;--on:#04201d;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+.w{max-width:900px;margin:auto;padding:16px}
+h1{font-size:22px;margin:4px 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+input{height:44px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:0 12px;font-size:16px}
+button{height:44px;border:0;border-radius:10px;background:var(--brand);color:var(--on);font-weight:700;padding:0 16px;cursor:pointer;font-size:15px}
+button.g{background:transparent;color:var(--ink);border:1.5px solid var(--line)}button.d{background:none;color:var(--bad);height:auto;padding:4px 8px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.row label{font-size:13px;color:var(--muted);display:grid;gap:4px}
+h2{font-size:16px;margin:0 0 2px}.sub{color:var(--muted);font-size:13px;margin-bottom:8px}
+.b{border-top:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:70px 1fr auto;gap:4px 12px;align-items:start}
+.b .s{font-weight:700;color:var(--brand)}.b small{color:var(--muted);display:block}
+a{color:var(--brand)}
+@media(max-width:560px){.b{grid-template-columns:60px 1fr}.b>:last-child{grid-column:2}}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>Admin · Locum ED HJ</h1>
+<div class="card" id="login"><div class="row"><label>Admin PIN<input id="pin" type="password" inputmode="numeric" autocomplete="off"></label><button id="go">Sign in</button></div><p class="sub" id="err" style="color:var(--bad);margin-top:8px"></p></div>
+<div id="main" hidden>
+<div class="card row"><label>From<input type="date" id="from"></label><label>To<input type="date" id="to"></label><button id="load">Load</button><button class="g" id="csv">Export CSV</button><button class="g" id="out">Sign out</button></div>
+<div id="list"></div>
+</div>
+</div>
+<script src="config.js"></script>
+<script>
+(function(){
+var CFG=window.APP_CONFIG||{},$=function(s){return document.querySelector(s)},PIN='',DATA=[];
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+function iso(d){var m=d.getMonth()+1,x=d.getDate();return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(x<10?'0':'')+x}
+function api(a,d){return fetch(CFG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:a,pin:PIN},d||{}))}).then(function(r){return r.json()}).then(function(j){if(!j.ok)throw new Error(j.error);return j})}
+var t=new Date(),e=new Date();e.setDate(e.getDate()+30);$('#from').value=iso(t);$('#to').value=iso(e);
+function show(on){$('#login').hidden=on;$('#main').hidden=!on}
+function load(){
+  $('#list').innerHTML='<p class="sub">Loading…</p>';
+  return api('adminList',{from:$('#from').value,to:$('#to').value}).then(function(j){DATA=j.bookings;render();show(true);try{sessionStorage.setItem('apin',PIN)}catch(x){}},function(x){$('#err').textContent=x.message;show(false);try{sessionStorage.removeItem('apin')}catch(y){}});
+}
+function render(){
+  if(!DATA.length){$('#list').innerHTML='<div class="card">No bookings in this range.</div>';return}
+  var g={},order=[];
+  DATA.forEach(function(b){var k=b.date+'|'+b.slot;if(!g[k]){g[k]=[];order.push(k)}g[k].push(b)});
+  $('#list').innerHTML=order.map(function(k){var a=g[k],f=a[0];var mo=a.filter(function(b){return b.seat!=='PARA'}).length,pa=a.length-mo;
+    return '<div class="card"><h2>'+esc(f.hari)+', '+esc(f.date)+' · '+esc(f.label)+'</h2><div class="sub">MO '+mo+'/2 · Paramedic '+pa+'/1</div>'+a.map(function(b){
+      return '<div class="b"><div class="s">'+esc(b.seat)+'</div><div><b>'+esc(b.name)+'</b> <small>'+esc(b.role)+' · Reg '+esc(b.regNo)+' · '+esc(b.workplace)+'</small><small>IC '+esc(b.ic)+' · <a href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a> · '+esc(b.email)+'</small></div><button class="d" data-id="'+esc(b.id)+'">Cancel</button></div>'}).join('')+'</div>'}).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('[data-id]'),function(x){x.onclick=function(){if(confirm('Cancel this booking?'))api('adminCancel',{id:x.dataset.id}).then(load,function(er){alert(er.message)})}});
+}
+$('#go').onclick=function(){PIN=$('#pin').value;$('#err').textContent='';load()};
+$('#pin').addEventListener('keydown',function(ev){if(ev.key==='Enter')$('#go').click()});
+$('#load').onclick=load;
+$('#out').onclick=function(){PIN='';DATA=[];try{sessionStorage.removeItem('apin')}catch(x){}show(false)};
+$('#csv').onclick=function(){
+  var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'},tx=function(v){return '="'+v+'"'};
+  var rows=[['Tarikh','Hari','Masa Bertugas','Seat','Role','Nama Pegawai','No Reg','Tempat Bertugas','No IC','No Tel','Email']].concat(DATA.map(function(b){return [b.date,b.hari,b.label,b.seat,b.role,b.name,b.regNo,b.workplace,tx(b.ic),tx(b.phone),b.email]}));
+  var csv='\ufeff'+rows.map(function(r){return r.map(function(c,i){return (typeof c==='string'&&c.indexOf('="')===0)?c:q(c)}).join(',')}).join('\r\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='locum-bookings.csv';a.click();
+};
+try{var sp=sessionStorage.getItem('apin');if(sp){PIN=sp;load()}}catch(x){}
+})();
+</script>
+</body>
+</html>
