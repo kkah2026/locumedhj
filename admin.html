@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0f766e">
 <title>Admin · Locum ED HJ</title>
+<style id="pgstyle">@page{size:A4 portrait;margin:10mm}</style>
 <style>
 :root{--bg:#f3f7f8;--card:#fff;--ink:#14212b;--muted:#5d6b78;--line:#e1e8ed;--brand:#0f766e;--brand-d:#0b5a54;--brand-l:#e1f4f1;--on:#fff;--bad:#b91c1c;--ok:#15803d;--hol:#fef3c7;--hol-i:#92400e;--r:16px;--sh:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06)}
 @media(prefers-color-scheme:dark){:root{--bg:#0d1418;--card:#152027;--ink:#e8eef2;--muted:#93a4b1;--line:#263641;--brand:#2dd4bf;--brand-d:#5eead4;--brand-l:#10343a;--on:#04201d;--bad:#f87171;--ok:#4ade80;--hol:#3a2f0b;--hol-i:#fbbf24;--sh:0 8px 24px rgba(0,0,0,.35)}}
@@ -81,6 +82,34 @@ a{color:var(--brand)}
 details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:8px 0}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:#111c22;color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:92vw;text-align:center}
 #toast.on{opacity:1;transform:translate(-50%,0)}
+/* print preview + A4 sheet */
+.cal-h .nav .btn{min-height:44px;padding:0 14px;border-radius:12px}
+#pv-ov{position:fixed;inset:0;z-index:30;background:#525659;display:flex;flex-direction:column}
+#pv-ov[hidden]{display:none}
+.pvbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--card);border-bottom:1px solid var(--line)}
+.pvbar .sp{flex:1}.pvbar .btn{min-height:42px;padding:0 16px}
+.pvbar .seg{display:flex;margin:0;gap:6px}.pvbar .seg span{height:42px;padding:0 14px}
+.pvscroll{flex:1;overflow:auto;padding:12px}
+.paper{background:#fff;color:#000;margin:0 auto;box-shadow:0 2px 14px rgba(0,0,0,.45);padding:10mm;width:210mm;min-height:297mm;zoom:var(--z,1);font:9pt/1.25 Arial,Helvetica,sans-serif}
+.paper h1{font-size:13pt;text-align:center;margin:0;text-transform:uppercase;letter-spacing:.3px}
+.paper h2{font-size:11pt;text-align:center;margin:2px 0 8px;font-weight:700;text-transform:uppercase}
+.paper table{width:100%;border-collapse:collapse;table-layout:fixed}
+.paper th,.paper td{border:1px solid #000;padding:2px 5px;vertical-align:middle;text-align:left;word-break:break-word}
+.paper th{background:#e5e7eb;text-align:center;font-size:9pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.paper td.d{text-align:center;font-size:9pt}.paper td.d em{display:block;font-style:normal;font-size:7.5pt;font-weight:700}
+.paper td.s{text-align:center;white-space:nowrap}
+.paper td small{font-size:7.5pt}
+.paper .foot{margin-top:6px;font-size:7.5pt;color:#333;display:flex;justify-content:space-between}
+@media print{
+  html,body{background:#fff!important}
+  .top,.w,#toast,.pvbar{display:none!important}
+  #pv-ov{position:static!important;display:block!important;background:none!important}
+  #pv-ov[hidden]{display:none!important}
+  .pvscroll{overflow:visible!important;padding:0!important}
+  .paper{box-shadow:none!important;width:auto!important;min-height:0!important;padding:0!important;zoom:1!important}
+  .paper thead{display:table-header-group}
+  .paper tbody,.paper tr{break-inside:avoid;page-break-inside:avoid}
+}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -105,7 +134,7 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:8px 0}
       </section>
       <section class="pane" id="p1" aria-label="Calendar view">
         <div class="card">
-          <div class="cal-h"><h2 id="mt"></h2><div class="nav"><button id="pv" aria-label="Previous month">‹</button><button id="nx" aria-label="Next month">›</button></div></div>
+          <div class="cal-h"><h2 id="mt"></h2><div class="nav"><button class="btn g" id="pr" aria-label="Print this month">Print</button><button id="pv" aria-label="Previous month">‹</button><button id="nx" aria-label="Next month">›</button></div></div>
           <div class="grid" id="grid"></div>
           <div class="legend"><span><i style="background:var(--brand)"></i>Seats filled</span><span><i style="background:var(--ok)"></i>Day full</span><span><i style="background:var(--hol)"></i>Holiday</span></div>
         </div>
@@ -117,6 +146,15 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600;padding:8px 0}
       </section>
     </div>
   </div>
+</div>
+<div id="pv-ov" hidden>
+  <div class="pvbar">
+    <button class="btn g" id="pvx">Close</button>
+    <div class="seg" role="radiogroup" aria-label="Page orientation"><label><input type="radio" name="or" value="portrait" checked><span>Portrait</span></label><label><input type="radio" name="or" value="landscape"><span>Landscape</span></label></div>
+    <div class="sp"></div>
+    <button class="btn" id="pvp">Print / Save PDF</button>
+  </div>
+  <div class="pvscroll"><div class="paper" id="paper"></div></div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>
@@ -239,6 +277,48 @@ function renderDay(){
   if(orphan.length)h+='<p class="fe">⚠ These bookings use a slot that no longer exists on this date (holiday change). Please cancel or contact the person.</p>'+orphan.map(row).join('');
   box.innerHTML=h;
 }
+
+/* ---------- print monthly sheet (A4) ---------- */
+var orient='portrait';
+var phoneFmt=function(p){return String(p||'').replace(/^(\d{3})(\d{3,4})(\d{4})$/,'$1-$2 $3')};
+function printCell(b){
+  if(!b)return '<td></td>';
+  return '<td><b>'+esc(b.name)+'</b>'+(b.seat==='PARA'?' <small>('+(b.role==='NURSE'?'Jururawat':esc(b.role))+')</small>':'')+'<br>'+esc(phoneFmt(b.phone))+'</td>';
+}
+function sheetHtml(data){
+  var y=cur.getFullYear(),m=cur.getMonth(),n=new Date(y,m+1,0).getDate(),hm=holMap(),body='',extras=false;
+  for(var d=1;d<=n;d++){
+    var date=y+'-'+pad(m+1)+'-'+pad(d),dayB=data.filter(function(b){return b.date===date}),slots=slotsOf(date).slice();
+    dayB.forEach(function(b){if(!slots.some(function(s){return s.key===b.slot})){slots.push({key:b.slot,label:b.label+' *'});extras=true}});
+    body+='<tbody>'+slots.map(function(s,i){
+      return '<tr>'+(i===0?'<td class="d" rowspan="'+slots.length+'"><b>'+pad(d)+'/'+pad(m+1)+'/'+y+'</b><br>'+HARI[pd(date).getDay()]+(hm[date]?'<em>'+esc(hm[date])+'</em>':'')+'</td>':'')+
+        '<td class="s">'+s.label+'</td>'+SEATS.map(function(st){return printCell(dayB.filter(function(b){return b.slot===s.key&&b.seat===st.k})[0])}).join('')+'</tr>';
+    }).join('')+'</tbody>';
+  }
+  var now=new Date();
+  return '<h1>Jadual Locum '+esc(INFO.location||'KECEMASAN DAN TRAUMA HOSPITAL JITRA')+'</h1><h2>Bulan: '+esc(cur.toLocaleDateString('ms-MY',{month:'long',year:'numeric'}))+'</h2>'+
+    '<table><colgroup><col style="width:16%"><col style="width:14%"><col style="width:22%"><col style="width:22%"><col style="width:26%"></colgroup>'+
+    '<thead><tr><th>Tarikh</th><th>Slot</th><th>MO 1</th><th>MO 2</th><th>Paramedik</th></tr></thead>'+body+'</table>'+
+    '<div class="foot"><span>'+(extras?'* Slot lama (tarikh ini kini cuti umum / slot telah ditukar)':'')+'</span><span>Dicetak: '+esc(now.toLocaleString('en-GB'))+'</span></div>';
+}
+function zoomPaper(){
+  var p=$('#paper'),mm=orient==='landscape'?297:210;
+  p.style.width=mm+'mm';p.style.minHeight=(orient==='landscape'?210:297)+'mm';
+  p.style.setProperty('--z',Math.min(1,(window.innerWidth-24)/(mm*3.7795)));
+}
+function setOrient(o){orient=o;$('#pgstyle').textContent='@page{size:A4 '+o+';margin:10mm}';zoomPaper()}
+function printMonth(){
+  var k=ym(cur),b=$('#pr');b.disabled=true;
+  api('adminList',{from:k+'-01',to:iso(new Date(cur.getFullYear(),cur.getMonth()+1,0))}).then(function(j){
+    MONTHS[k]=j.bookings;renderCal();renderDay();
+    $('#paper').innerHTML=sheetHtml(j.bookings);$('#pv-ov').hidden=false;document.body.style.overflow='hidden';zoomPaper();$('.pvscroll').scrollTop=0;
+  },function(e){toast(e.message)}).then(function(){b.disabled=false});
+}
+function closePrint(){$('#pv-ov').hidden=true;document.body.style.overflow=''}
+$('#pr').onclick=printMonth;$('#pvx').onclick=closePrint;$('#pvp').onclick=function(){window.print()};
+$$('input[name=or]').forEach(function(r){r.onchange=function(){setOrient(r.value)}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#pv-ov').hidden)closePrint()});
+window.addEventListener('resize',function(){if(!$('#pv-ov').hidden)zoomPaper()});
 
 /* ---------- cancel (list + calendar) ---------- */
 document.addEventListener('click',function(e){
