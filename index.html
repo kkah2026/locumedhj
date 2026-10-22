@@ -24,6 +24,9 @@ input[type=text],input[type=email],input[type=tel],input:not([type]){width:100%;
 input:focus{border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-l)}
 input.ro{opacity:.7}input.bad{border-color:var(--bad)}
 .big{font-size:22px;letter-spacing:2px;text-align:center;font-variant-numeric:tabular-nums}
+.warn{display:flex;gap:10px;background:#fef3c7;color:#78350f;border:1px solid #fcd34d;border-radius:12px;padding:12px;margin-top:14px;font-size:14px;line-height:1.45;text-align:left}
+.warn .ic{font-size:20px;line-height:1.2}.warn strong{display:block;font-size:14.5px;margin-bottom:2px}
+@media(prefers-color-scheme:dark){.warn{background:#3a2f0b;color:#fde68a;border-color:#7a5c0a}}
 .hint{font-size:13px;color:var(--muted);margin-top:6px}.fe{font-size:13px;color:var(--bad);margin-top:6px}
 .btn{width:100%;min-height:52px;border:0;border-radius:12px;background:var(--brand);color:var(--on);font-size:17px;font-weight:700;cursor:pointer;margin-top:20px;transition:transform .1s,opacity .15s}
 .btn:active{transform:scale(.98)}.btn[disabled]{opacity:.6;cursor:wait}
@@ -105,6 +108,10 @@ var S={session:null,avail:null,availAt:0,mine:null,sel:null};
 var ROLE={MO:{short:'MO',name:'Medical Officer',reg:'MMC registration number'},AMO:{short:'AMO',name:'Assistant Medical Officer',reg:'Medical Assistants Board reg. no.'},NURSE:{short:'Nurse',name:'Nurse',reg:'Nursing Board reg. no. (APC)'}};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var pd=function(s){var a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
+var CUTOFF=24;
+function warnBox(title,html){return '<div class="warn" role="note"><span class="ic">⚠️</span><div><strong>'+title+'</strong>'+html+'</div></div>'}
+function lastMinuteWarn(){return warnBox('Last-minute cancellation','You can cancel here until '+CUTOFF+' hours before your slot. After that, you must <b>find a replacement yourself</b> and contact the admin to cancel your slot and pass it to the new booker. Please book only if you can attend.')}
+function cancelDeadline(b,h){var s=pd(b.date);s.setHours(+b.slot.slice(0,2),+b.slot.slice(2,4),0,0);return new Date(s.getTime()-h*3600000).toLocaleString('en-MY',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}
 var fmtLong=function(s){return pd(s).toLocaleDateString('en-MY',{weekday:'long',day:'numeric',month:'long',year:'numeric'})};
 
 /* ---------- session ---------- */
@@ -224,7 +231,7 @@ function dayState(d){
 }
 function loadBook(force){
   if(!force&&S.avail&&Date.now()-S.availAt<60000&&S.mine)return Promise.resolve();
-  return Promise.all([api('availability',null,true),api('mine',{token:S.session.token})]).then(function(r){S.avail=r[0];S.availAt=Date.now();S.mine=r[1].bookings});
+  return Promise.all([api('availability',null,true),api('mine',{token:S.session.token})]).then(function(r){S.avail=r[0];S.availAt=Date.now();S.mine=r[1].bookings;CUTOFF=r[1].cutoff||CUTOFF});
 }
 function viewBook(){
   tabs(true,'book');
@@ -260,7 +267,7 @@ function paint(scroll){
 function confirmBook(d,s){
   var p=S.session.profile;
   openSheet('<h3>Confirm booking</h3><dl><dt>Date</dt><dd>'+fmtLong(d.date)+'</dd><dt>Time</dt><dd>'+s.label+'</dd><dt>As</dt><dd>'+ROLE[p.role].name+'</dd><dt>Name</dt><dd>'+esc(p.name)+'</dd><dt>Phone</dt><dd>'+esc(p.phone)+'</dd><dt>Email</dt><dd>'+esc(p.email)+'</dd></dl>'+
-  '<p class="hint">A confirmation email will be sent to you.</p><button class="btn" id="ok">Confirm booking</button><button class="btn ghost" data-close>Cancel</button>');
+  lastMinuteWarn()+'<p class="hint">A confirmation email will be sent to you.</p><button class="btn" id="ok">Confirm booking</button><button class="btn ghost" data-close>Cancel</button>');
   $('#ok').onclick=function(){
     var b=$('#ok');busy(b,true,'Booking…');
     api('book',{token:S.session.token,date:d.date,slot:s.key}).then(function(j){
@@ -276,10 +283,10 @@ function viewMine(){
   tabs(true,'mine');
   app.innerHTML='<h2 class="sec" style="font-size:16px;margin-top:6px">My upcoming bookings</h2><div id="list"><div class="sk" style="height:96px;margin-bottom:12px"></div><div class="sk" style="height:96px"></div></div>';
   api('mine',{token:S.session.token}).then(function(j){
-    S.mine=j.bookings;
+    S.mine=j.bookings;CUTOFF=j.cutoff||CUTOFF;
     var l=$('#list');
     if(!j.bookings.length){l.innerHTML='<div class="empty fade">No upcoming bookings yet.<br><button class="link" id="go">Book a slot</button></div>';$('#go').onclick=viewBook;return}
-    l.innerHTML=j.bookings.map(function(b){return '<div class="card item fade"><div class="r"><h3>'+fmtLong(b.date)+'</h3></div><div class="r"><span>'+b.label+' · <span class="badge">'+b.seat.replace('PARA','Paramedic')+'</span></span>'+(b.canCancel?'<button class="link" style="color:var(--bad)" data-id="'+b.id+'">Cancel</button>':'')+'</div>'+(b.canCancel?'':'<p class="hint">Cancellation closes '+j.cutoff+' hours before the slot. Contact the admin to change.</p>')+'<p class="hint">Ref '+b.id+'</p></div>'}).join('');
+    l.innerHTML=j.bookings.map(function(b){return '<div class="card item fade"><div class="r"><h3>'+fmtLong(b.date)+'</h3></div><div class="r"><span>'+b.label+' · <span class="badge">'+b.seat.replace('PARA','Paramedic')+'</span></span>'+(b.canCancel?'<button class="link" style="color:var(--bad)" data-id="'+b.id+'">Cancel</button>':'')+'</div>'+(b.canCancel?'<p class="hint">Free cancellation until '+cancelDeadline(b,j.cutoff)+'</p>':warnBox('Cancellation is closed','This slot starts within '+j.cutoff+' hours. You must <b>find a replacement yourself</b>, then contact the admin to cancel your slot and pass it to the new booker.'))+'<p class="hint">Ref '+b.id+'</p></div>'}).join('');
     $$('[data-id]',l).forEach(function(x){x.onclick=function(){
       var b=S.mine.filter(function(m){return m.id===x.dataset.id})[0];
       openSheet('<h3>Cancel this booking?</h3><p class="muted">'+fmtLong(b.date)+'<br>'+b.label+'</p><button class="btn danger" id="yes">Yes, cancel booking</button><button class="btn ghost" data-close>Keep it</button>');
