@@ -182,8 +182,8 @@ function viewIC(){
 /* ---------- terms (edit the wording here) ---------- */
 function termsList(){return [
   ['Accurate details','The name, IC, registration number (MMC / board), place of work, phone number and email you give must be correct and belong to you.'],
-  ['Account changes','Any change to your account information after sign-up will incur a surcharge.',true],
-  ['Last-minute cancellation','You can cancel online until '+CUTOFF+' hours before your slot. After that, you must find a replacement yourself and contact the admin to cancel your slot and pass it to the new booker.']
+  ['Account changes','Any changes to your account information after registration may incur an additional administrative fee.',true],
+  ['Last-minute cancellation','Online cancellations are permitted up to '+CUTOFF+' hours before your slot. You must find a replacement yourself prior cancellation. You have to cancel the booking and new booker shall book your slot as replacement immediately.']
 ]}
 function termsSheet(onOk){
   openSheet('<h3>Terms &amp; conditions</h3><div class="terms" tabindex="0">'+termsList().map(function(t){return '<div class="t'+(t[2]?' key':'')+'"><b>'+t[0]+'</b>'+t[1]+'</div>'}).join('')+'</div>'+
