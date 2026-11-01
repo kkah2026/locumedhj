@@ -112,7 +112,7 @@ var $=function(s,r){return (r||document).querySelector(s)};
 var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
 var app=$('#app');
 var S={session:null,avail:null,availAt:0,mine:null,sel:null};
-var ROLE={MO:{short:'MO',name:'Medical Officer',reg:'MMC registration number'},AMO:{short:'AMO',name:'Assistant Medical Officer',reg:'Medical Assistants Board reg. no.'},NURSE:{short:'Nurse',name:'Nurse',reg:'Nursing Board reg. no. (APC)'}};
+var ROLE={MO:{short:'MO',name:'Medical Officer',reg:'MMC registration number'},AMO:{short:'AMO',name:'Assistant Medical Officer',reg:'Medical Assistants Board reg. no.'},NURSE:{short:'SN',name:'Staff Nurse (SN)',reg:'Nursing Board reg. no. (APC)'}};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var pd=function(s){var a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])};
 var CUTOFF=24;
@@ -182,8 +182,8 @@ function viewIC(){
 /* ---------- terms (edit the wording here) ---------- */
 function termsList(){return [
   ['Accurate details','The name, IC, registration number (MMC / board), place of work, phone number and email you give must be correct and belong to you.'],
-  ['Account changes','Any changes to your account information after registration may incur an additional administrative fee.',true],
-  ['Last-minute cancellation','Online cancellations are permitted up to '+CUTOFF+' hours before your slot. You must find a replacement yourself prior cancellation. You have to cancel the booking and new booker shall book your slot as replacement immediately.']
+  ['Account changes','Any change to your account information after sign-up will incur a surcharge.',true],
+  ['Last-minute cancellation','You can cancel online until '+CUTOFF+' hours before your slot. After that, you must find a replacement yourself and contact the admin to cancel your slot and pass it to the new booker.']
 ]}
 function termsSheet(onOk){
   openSheet('<h3>Terms &amp; conditions</h3><div class="terms" tabindex="0">'+termsList().map(function(t){return '<div class="t'+(t[2]?' key':'')+'"><b>'+t[0]+'</b>'+t[1]+'</div>'}).join('')+'</div>'+
@@ -254,7 +254,8 @@ function viewRegister(ic,edit){
 }
 
 /* ---------- book ---------- */
-function myType(){return S.session.profile.role==='MO'?'mo':'para'}
+function myType(){var r=S.session.profile.role;return r==='MO'?'mo':r==='AMO'?'amo':'sn'}
+var SEATNAME={MO1:'MO 1',MO2:'MO 2',AMO:'AMO',SN:'SN'};
 function dayState(d){
   var t=myType(),open=false,all=true;
   d.slots.forEach(function(s){if(!s.closed){all=false;if(s[t].left>0)open=true}});
@@ -290,7 +291,7 @@ function paint(scroll){
     var st=s.closed?'closed':mine?'booked':s[t].left<=0?'full':'open';
     var lab={open:'Available',full:'Full',closed:'Closed',booked:'Booked ✓'}[st];
     return '<button class="slot '+st+'" data-i="'+i+'" '+(st==='open'?'':'disabled')+'><div class="t"><span>'+s.label+'</span><span class="st '+st+'">'+lab+'</span></div>'+
-      '<div class="chips"><span class="chip'+(t==='mo'?' you':'')+'">MO · '+s.mo.left+' of '+s.mo.total+' left</span><span class="chip'+(t==='para'?' you':'')+'">Paramedic · '+s.para.left+' of '+s.para.total+' left</span></div></button>';
+      '<div class="chips">'+[['mo','MO'],['amo','AMO'],['sn','SN']].map(function(x){return '<span class="chip'+(t===x[0]?' you':'')+'">'+x[1]+' · '+s[x[0]].left+' of '+s[x[0]].total+' left</span>'}).join('')+'</div></button>';
   }).join('');
   var el=$('#slots');el.innerHTML=h;
   $$('.slot.open',el).forEach(function(b){b.onclick=function(){confirmBook(d,d.slots[+b.dataset.i])}});
@@ -317,7 +318,7 @@ function viewMine(){
     S.mine=j.bookings;CUTOFF=j.cutoff||CUTOFF;
     var l=$('#list');
     if(!j.bookings.length){l.innerHTML='<div class="empty fade">No upcoming bookings yet.<br><button class="link" id="go">Book a slot</button></div>';$('#go').onclick=viewBook;return}
-    l.innerHTML=j.bookings.map(function(b){return '<div class="card item fade"><div class="r"><h3>'+fmtLong(b.date)+'</h3></div><div class="r"><span>'+b.label+' · <span class="badge">'+b.seat.replace('PARA','Paramedic')+'</span></span>'+(b.canCancel?'<button class="link" style="color:var(--bad)" data-id="'+b.id+'">Cancel</button>':'')+'</div>'+(b.canCancel?'<p class="hint">Free cancellation until '+cancelDeadline(b,j.cutoff)+'</p>':warnBox('Cancellation is closed','This slot starts within '+j.cutoff+' hours. You must <b>find a replacement yourself</b>, then contact the admin to cancel your slot and pass it to the new booker.'))+'<p class="hint">Ref '+b.id+'</p></div>'}).join('');
+    l.innerHTML=j.bookings.map(function(b){return '<div class="card item fade"><div class="r"><h3>'+fmtLong(b.date)+'</h3></div><div class="r"><span>'+b.label+' · <span class="badge">'+(SEATNAME[b.seat]||b.seat)+'</span></span>'+(b.canCancel?'<button class="link" style="color:var(--bad)" data-id="'+b.id+'">Cancel</button>':'')+'</div>'+(b.canCancel?'<p class="hint">Free cancellation until '+cancelDeadline(b,j.cutoff)+'</p>':warnBox('Cancellation is closed','This slot starts within '+j.cutoff+' hours. You must <b>find a replacement yourself</b>, then contact the admin to cancel your slot and pass it to the new booker.'))+'<p class="hint">Ref '+b.id+'</p></div>'}).join('');
     $$('[data-id]',l).forEach(function(x){x.onclick=function(){
       var b=S.mine.filter(function(m){return m.id===x.dataset.id})[0];
       openSheet('<h3>Cancel this booking?</h3><p class="muted">'+fmtLong(b.date)+'<br>'+b.label+'</p><button class="btn danger" id="yes">Yes, cancel booking</button><button class="btn ghost" data-close>Keep it</button>');
