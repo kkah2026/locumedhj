@@ -167,7 +167,8 @@ var $=function(s){return document.querySelector(s)},$$=function(s){return Array.
 var PIN='',INFO=null,LIST=[],MONTHS={},cur=null,sel=null,tab=0;
 var EVEN=[{key:'1800-2200',label:'6pm – 10pm'}];
 var OFF=[{key:'0900-1300',label:'9am – 1pm'},{key:'1500-1900',label:'3pm – 7pm'},{key:'1900-2300',label:'7pm – 11pm'}];
-var SEATS=[{k:'MO1',n:'MO 1'},{k:'MO2',n:'MO 2'},{k:'PARA',n:'Paramedic'}];
+var SEATS=[{k:'MO1',n:'MO 1'},{k:'MO2',n:'MO 2'},{k:'AMO',n:'AMO'},{k:'SN',n:'SN'}];
+var seatName=function(s){for(var i=0;i<SEATS.length;i++)if(SEATS[i].k===s)return SEATS[i].n;return s};
 var HARI=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var pad=function(n){return (n<10?'0':'')+n};
@@ -223,16 +224,16 @@ function renderList(){
   if(!LIST.length){$('#list').innerHTML='<div class="card sub">No bookings in this range.</div>';return}
   var g={},order=[];
   LIST.forEach(function(b){var k=b.date+'|'+b.slot;if(!g[k]){g[k]=[];order.push(k)}g[k].push(b)});
-  $('#list').innerHTML=order.map(function(k){var a=g[k],f=a[0],mo=a.filter(function(b){return b.seat!=='PARA'}).length,pa=a.length-mo;
-    return '<div class="card"><h2>'+esc(f.hari)+', '+esc(f.date)+' · '+esc(f.label)+(INFO.holidays.some(function(h){return h.date===f.date})?' <span class="pill">Holiday</span>':'')+'</h2><p class="sub">MO '+mo+'/2 · Paramedic '+pa+'/1</p>'+a.map(row).join('')+'</div>'}).join('');
+  $('#list').innerHTML=order.map(function(k){var a=g[k],f=a[0],mo=a.filter(function(b){return b.seat==='MO1'||b.seat==='MO2'}).length,am=a.filter(function(b){return b.seat==='AMO'}).length,sn=a.filter(function(b){return b.seat==='SN'}).length;
+    return '<div class="card"><h2>'+esc(f.hari)+', '+esc(f.date)+' · '+esc(f.label)+(INFO.holidays.some(function(h){return h.date===f.date})?' <span class="pill">Holiday</span>':'')+'</h2><p class="sub">MO '+mo+'/2 · AMO '+am+'/1 · SN '+sn+'/1</p>'+a.map(row).join('')+'</div>'}).join('');
 }
 function row(b){
-  return '<div class="b"><div class="s">'+esc(b.seat)+'</div><div><b>'+esc(b.name)+'</b><small>'+esc(b.role)+' · Reg '+esc(b.regNo)+' · '+esc(b.workplace)+'</small><small>IC '+esc(b.ic)+' · <a href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a> · '+esc(b.email)+'</small></div><button class="lnk" data-cancel="'+esc(b.id)+'">Cancel</button></div>';
+  return '<div class="b"><div class="s">'+esc(seatName(b.seat))+'</div><div><b>'+esc(b.name)+'</b><small>'+esc(b.role)+' · Reg '+esc(b.regNo)+' · '+esc(b.workplace)+'</small><small>IC '+esc(b.ic)+' · <a href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a> · '+esc(b.email)+'</small></div><button class="lnk" data-cancel="'+esc(b.id)+'">Cancel</button></div>';
 }
 $('#load').onclick=loadList;
 $('#csv').onclick=function(){
   var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'},tx=function(v){return '="'+v+'"'};
-  var rows=[['Tarikh','Hari','Masa Bertugas','Seat','Role','Nama Pegawai','No Reg','Tempat Bertugas','No IC','No Tel','Email']].concat(LIST.map(function(b){return [b.date,b.hari,b.label,b.seat,b.role,b.name,b.regNo,b.workplace,tx(b.ic),tx(b.phone),b.email]}));
+  var rows=[['Tarikh','Hari','Masa Bertugas','Seat','Role','Nama Pegawai','No Reg','Tempat Bertugas','No IC','No Tel','Email']].concat(LIST.map(function(b){return [b.date,b.hari,b.label,seatName(b.seat),b.role,b.name,b.regNo,b.workplace,tx(b.ic),tx(b.phone),b.email]}));
   var csv='﻿'+rows.map(function(r){return r.map(function(c){return (typeof c==='string'&&c.indexOf('="')===0)?c:q(c)}).join(',')}).join('\r\n');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='locum-bookings.csv';a.click();
 };
@@ -251,7 +252,7 @@ function renderCal(){
   var first=cur.getDay(),days=new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate(),hm=holMap();
   for(var i=0;i<first;i++)h+='<div class="cell blank"></div>';
   for(var d=1;d<=days;d++){
-    var date=k+'-'+pad(d),n=by[date]||0,cap=slotsOf(date).length*3,c=['cell'];
+    var date=k+'-'+pad(d),n=by[date]||0,cap=slotsOf(date).length*SEATS.length,c=['cell'];
     if(hm[date])c.push('hol');if(date<INFO.today||date>INFO.max)c.push('out');if(date===INFO.today)c.push('today');if(date===sel)c.push('sel');if(n&&n>=cap)c.push('full');
     h+='<button class="'+c.join(' ')+'" data-d="'+date+'" aria-label="'+esc(fmt(date))+(n?', '+n+' of '+cap+' seats filled':'')+(hm[date]?', holiday: '+esc(hm[date]):'')+'"><span class="n">'+d+'</span>'+(n?'<span class="c">'+n+'/'+cap+'</span>':'')+'<span class="bar"><b style="width:'+Math.min(100,n/cap*100)+'%"></b></span></button>';
   }
@@ -284,7 +285,7 @@ var orient='portrait';
 var phoneFmt=function(p){return String(p||'').replace(/^(\d{3})(\d{3,4})(\d{4})$/,'$1-$2 $3')};
 function printCell(b){
   if(!b)return '<td></td>';
-  return '<td><b>'+esc(b.name)+'</b>'+(b.seat==='PARA'?' <small>('+(b.role==='NURSE'?'Jururawat':esc(b.role))+')</small>':'')+'<br>'+esc(phoneFmt(b.phone))+'</td>';
+  return '<td><b>'+esc(b.name)+'</b><br>'+esc(phoneFmt(b.phone))+'</td>';
 }
 function sheetHtml(data){
   var y=cur.getFullYear(),m=cur.getMonth(),n=new Date(y,m+1,0).getDate(),hm=holMap(),body='',extras=false;
@@ -298,8 +299,8 @@ function sheetHtml(data){
   }
   var now=new Date();
   return '<h1>Jadual Locum '+esc(INFO.location||'KECEMASAN DAN TRAUMA HOSPITAL JITRA')+'</h1><h2>Bulan: '+esc(cur.toLocaleDateString('ms-MY',{month:'long',year:'numeric'}))+'</h2>'+
-    '<table><colgroup><col style="width:16%"><col style="width:14%"><col style="width:22%"><col style="width:22%"><col style="width:26%"></colgroup>'+
-    '<thead><tr><th>Tarikh</th><th>Slot</th><th>MO 1</th><th>MO 2</th><th>Paramedik</th></tr></thead>'+body+'</table>'+
+    '<table><colgroup><col style="width:13%"><col style="width:12%"><col style="width:19%"><col style="width:19%"><col style="width:19%"><col style="width:18%"></colgroup>'+
+    '<thead><tr><th>Tarikh</th><th>Slot</th><th>MO 1</th><th>MO 2</th><th>AMO</th><th>SN</th></tr></thead>'+body+'</table>'+
     '<div class="foot"><span>'+(extras?'* Slot lama (tarikh ini kini cuti umum / slot telah ditukar)':'')+'</span><span>Dicetak: '+esc(now.toLocaleString('en-GB'))+'</span></div>';
 }
 function zoomPaper(){
