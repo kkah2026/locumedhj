@@ -167,6 +167,7 @@ var $=function(s){return document.querySelector(s)},$$=function(s){return Array.
 var PIN='',INFO=null,LIST=[],MONTHS={},cur=null,sel=null,tab=0;
 var EVEN=[{key:'1800-2200',label:'6pm – 10pm'}];
 var OFF=[{key:'0900-1300',label:'9am – 1pm'},{key:'1500-1900',label:'3pm – 7pm'},{key:'1900-2300',label:'7pm – 11pm'}];
+var SAT=[{key:'0900-1300',label:'9am – 1pm'},{key:'1400-1800',label:'2pm – 6pm'},{key:'1800-2200',label:'6pm – 10pm'}];
 var SEATS=[{k:'MO1',n:'MO 1'},{k:'MO2',n:'MO 2'},{k:'AMO',n:'AMO'},{k:'SN',n:'SN'}];
 var seatName=function(s){for(var i=0;i<SEATS.length;i++)if(SEATS[i].k===s)return SEATS[i].n;return s};
 var HARI=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
@@ -177,7 +178,7 @@ var pd=function(s){var a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[
 var ym=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)};
 var fmt=function(s){return pd(s).toLocaleDateString('en-MY',{weekday:'short',day:'numeric',month:'short',year:'numeric'})};
 var holMap=function(){var m={};INFO.holidays.forEach(function(h){m[h.date]=h.label});return m};
-var slotsOf=function(date){var d=pd(date).getDay();return (d===5||d===6||holMap()[date])?OFF:EVEN};
+var slotsOf=function(date){var d=pd(date).getDay();if(d===6)return SAT;return (d===5||holMap()[date])?OFF:EVEN};
 var toastT;
 function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on')},4200)}
 
@@ -276,7 +277,7 @@ function renderDay(){
     });
   });
   var orphan=all.filter(function(b){return !slots.some(function(s){return s.key===b.slot})});
-  if(orphan.length)h+='<p class="fe">⚠ These bookings use a slot that no longer exists on this date (holiday change). Please cancel or contact the person.</p>'+orphan.map(row).join('');
+  if(orphan.length)h+='<p class="fe">⚠ These bookings use a slot that no longer exists on this date (schedule change). Please cancel or contact the person.</p>'+orphan.map(row).join('');
   box.innerHTML=h;
 }
 
@@ -359,7 +360,7 @@ function renderWin(){
 function renderHols(){
   var up=INFO.holidays.filter(function(h){return h.date>=INFO.today}),past=INFO.holidays.filter(function(h){return h.date<INFO.today}).reverse();
   var item=function(h){return '<div class="hl"><div><b>'+esc(h.label)+'</b><small>'+esc(fmt(h.date))+'</small></div><button class="lnk" data-rh="'+esc(h.date)+'">Remove</button></div>'};
-  $('#hols').innerHTML='<h2>Public holidays</h2><p class="sub" style="margin:2px 0 12px">Holiday dates use the Friday/Saturday slots (9am–1pm, 3pm–7pm, 7pm–11pm).</p>'+
+  $('#hols').innerHTML='<h2>Public holidays</h2><p class="sub" style="margin:2px 0 12px">Weekday holidays use the Friday slots (9am–1pm, 3pm–7pm, 7pm–11pm). Saturdays always use 9am–1pm, 2pm–6pm, 6pm–10pm.</p>'+
   '<form id="hf" class="row"><label class="f">Date<input type="date" id="hd" required></label><label class="f">Name<input id="hn" maxlength="60" placeholder="e.g. Deepavali"></label><button class="btn" type="submit" id="ha">Add</button></form>'+
   '<div style="margin-top:12px">'+(up.length?up.map(item).join(''):'<p class="sub">No upcoming holidays added.</p>')+'</div>'+
   (past.length?'<details><summary>Past holidays ('+past.length+')</summary>'+past.map(item).join('')+'</details>':'');
