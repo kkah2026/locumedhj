@@ -178,7 +178,7 @@ var pd=function(s){var a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[
 var ym=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)};
 var fmt=function(s){return pd(s).toLocaleDateString('en-MY',{weekday:'short',day:'numeric',month:'short',year:'numeric'})};
 var holMap=function(){var m={};INFO.holidays.forEach(function(h){m[h.date]=h.label});return m};
-var slotsOf=function(date){var d=pd(date).getDay();if(d===6)return SAT;return (d===5||holMap()[date])?OFF:EVEN};
+var slotsOf=function(date){var d=pd(date).getDay();if(d===6||holMap()[date])return SAT;return d===5?OFF:EVEN};
 var toastT;
 function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('on')},4200)}
 
@@ -360,7 +360,7 @@ function renderWin(){
 function renderHols(){
   var up=INFO.holidays.filter(function(h){return h.date>=INFO.today}),past=INFO.holidays.filter(function(h){return h.date<INFO.today}).reverse();
   var item=function(h){return '<div class="hl"><div><b>'+esc(h.label)+'</b><small>'+esc(fmt(h.date))+'</small></div><button class="lnk" data-rh="'+esc(h.date)+'">Remove</button></div>'};
-  $('#hols').innerHTML='<h2>Public holidays</h2><p class="sub" style="margin:2px 0 12px">Weekday holidays use the Friday slots (9am–1pm, 3pm–7pm, 7pm–11pm). Saturdays always use 9am–1pm, 2pm–6pm, 6pm–10pm.</p>'+
+  $('#hols').innerHTML='<h2>Public holidays</h2><p class="sub" style="margin:2px 0 12px">Public holidays use the Saturday slots (9am–1pm, 2pm–6pm, 6pm–10pm).</p>'+
   '<form id="hf" class="row"><label class="f">Date<input type="date" id="hd" required></label><label class="f">Name<input id="hn" maxlength="60" placeholder="e.g. Deepavali"></label><button class="btn" type="submit" id="ha">Add</button></form>'+
   '<div style="margin-top:12px">'+(up.length?up.map(item).join(''):'<p class="sub">No upcoming holidays added.</p>')+'</div>'+
   (past.length?'<details><summary>Past holidays ('+past.length+')</summary>'+past.map(item).join('')+'</details>':'');
