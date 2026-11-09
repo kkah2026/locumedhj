@@ -191,12 +191,56 @@ function termsSheet(onOk){
     '<button class="btn" id="tok" disabled>Agree &amp; create account</button><button class="btn ghost" data-close>Back</button>');
   var tk=$('#tk'),ok=$('#tok');tk.focus();
   tk.onchange=function(){ok.disabled=!tk.checked};
-  ok.onclick=function(){if(!tk.checked)return;closeSheet();onOk()};
+  ok.onclick=function(){if(!tk.checked)return;onOk()}; // the next step replaces this sheet's content
 }
 function editSheet(onOk){
   openSheet('<h3>Save changes?</h3>'+warnBox('Surcharge applies','Any change to your account information will incur a surcharge.')+
     '<button class="btn" id="eok">Continue &amp; save</button><button class="btn ghost" data-close>Go back</button>');
   $('#eok').onclick=function(){closeSheet();onOk()};
+}
+
+/* ---------- email format + verification (new accounts) ---------- */
+var TYPOS={'gmial.com':'gmail.com','gmai.com':'gmail.com','gamil.com':'gmail.com','gmail.con':'gmail.com','gmail.co':'gmail.com','gmail.cm':'gmail.com','yaho.com':'yahoo.com','yahoo.con':'yahoo.com','hotmial.com':'hotmail.com','hotmail.con':'hotmail.com','outlook.con':'outlook.com'};
+function emailErr(v){
+  v=String(v||'').trim().toLowerCase();
+  if(!v)return 'Please enter your email.';
+  if(v.length>254||/\.\./.test(v)||/^\.|\.@/.test(v)||!/^[a-z0-9._%+\-]+@[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?)*\.[a-z]{2,}$/.test(v))return 'Enter a valid email, e.g. name@example.com';
+  var p=v.split('@'),fix=TYPOS[p[1]];
+  return fix?'Did you mean '+p[0]+'@'+fix+'?':'';
+}
+function verifySheet(d){
+  var timer,left=0;
+  openSheet('<h3>Verify your email</h3><p class="muted" id="vs">Sending a 6-digit code to <b>'+esc(d.email)+'</b>…</p>'+
+    '<label class="lbl" for="vc">6-digit code</label><input id="vc" class="big" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" disabled>'+
+    '<p class="fe" id="ve" role="alert"></p>'+
+    '<button class="btn ghost" id="vr" disabled>Resend code</button><button class="btn ghost" data-close>Change email</button>');
+  var vc=$('#vc'),vr=$('#vr'),ve=$('#ve'),vs=$('#vs');
+  function tick(){
+    if(!$('#vr')){clearInterval(timer);return}
+    vr.textContent=left>0?'Resend code in '+left+'s':'Resend code';vr.disabled=left>0;
+    if(left>0)left--;else clearInterval(timer);
+  }
+  function send(){
+    ve.textContent='';vr.disabled=true;vs.innerHTML='Sending a 6-digit code to <b>'+esc(d.email)+'</b>…';
+    api('sendCode',{ic:d.ic,email:d.email}).then(function(j){
+      vs.innerHTML='We sent a 6-digit code to <b>'+esc(d.email)+'</b>. It is valid for '+Math.round((j.ttl||600)/60)+' minutes. Check your spam folder if you do not see it.';
+      vc.disabled=false;vc.value='';vc.focus();
+      left=j.cooldown||45;clearInterval(timer);tick();timer=setInterval(tick,1000);
+    },function(e){vs.innerHTML='Code for <b>'+esc(d.email)+'</b>';ve.textContent=e.message;vr.disabled=false;vr.textContent='Try again'});
+  }
+  vr.onclick=send;
+  vc.addEventListener('input',function(){
+    vc.value=vc.value.replace(/\D/g,'').slice(0,6);ve.textContent='';
+    if(vc.value.length<6)return;
+    vc.disabled=true;vs.textContent='Checking…';
+    api('register',{profile:d,agreed:true,code:vc.value}).then(function(j){
+      clearInterval(timer);saveSession({token:j.token,profile:j.profile});closeSheet();viewBook();
+    },function(e){
+      vs.innerHTML='We sent a code to <b>'+esc(d.email)+'</b>.';ve.textContent=e.message;vc.disabled=false;vc.value='';vc.focus();
+      if(/expired|Too many|changed/i.test(e.message)){vr.disabled=false;vr.textContent='Send a new code'}
+    });
+  });
+  send();
 }
 
 /* ---------- registration / edit ---------- */
@@ -211,7 +255,7 @@ function viewRegister(ic,edit){
   '<label class="lbl" for="regNo" id="regL"></label><input id="regNo" autocomplete="off" value="'+esc(p.regNo)+'">'+
   '<label class="lbl" for="workplace">Place of work</label><input id="workplace" placeholder="Hospital / clinic" value="'+esc(p.workplace)+'">'+
   '<label class="lbl" for="phone">Phone number</label><input id="phone" type="tel" inputmode="numeric" autocomplete="tel" value="'+esc(p.phone||'01')+'">'+
-  '<label class="lbl" for="email">Email</label><input id="email" type="email" inputmode="email" autocomplete="email" value="'+esc(p.email)+'">'+
+  '<label class="lbl" for="email">Email</label><input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(p.email)+'">'+
   '<button class="btn" type="submit">'+(edit?'Save changes':'Save & continue')+'</button>'+(edit?'<button class="btn ghost" type="button" id="cx">Cancel</button>':'<button class="btn ghost" type="button" id="cx">Use a different IC</button>')+'</form>';
   var f=$('#f');
   function role(){return $('input[name=role]:checked',f).value}
@@ -232,24 +276,29 @@ function viewRegister(ic,edit){
     if(i>=0&&i<order.length-1)$('#'+order[i+1]).focus();else f.requestSubmit();
   });
   f.addEventListener('input',function(e){e.target.classList.remove('bad');var n=e.target.nextElementSibling;if(n&&n.className==='fe')n.remove()});
+  $('#email').addEventListener('blur',function(){ // check the format as soon as the user leaves the field
+    var el=$('#email'),m=el.value.trim()?emailErr(el.value):'';
+    if(m&&!(el.nextElementSibling&&el.nextElementSibling.className==='fe')){el.classList.add('bad');el.insertAdjacentHTML('afterend','<p class="fe">'+esc(m)+'</p>')}
+  });
   $('#cx').onclick=function(){edit?viewBook():viewIC()};
   if(!edit)$('#name').focus();
   f.addEventListener('submit',function(e){
     e.preventDefault();
     $$('.fe',f).forEach(function(x){x.remove()});
-    var d={ic:p.ic,role:role(),name:$('#name').value.trim(),regNo:$('#regNo').value.trim(),workplace:$('#workplace').value.trim(),phone:$('#phone').value,email:$('#email').value.trim()};
+    var d={ic:p.ic,role:role(),name:$('#name').value.trim(),regNo:$('#regNo').value.trim(),workplace:$('#workplace').value.trim(),phone:$('#phone').value,email:$('#email').value.trim().toLowerCase()};
     var bad=null;
     if(d.name.length<3)bad=['name','Please enter your full name.'];
     else if(!d.regNo)bad=['regNo','This number is required.'];
     else if(!d.workplace)bad=['workplace','Place of work is required.'];
     else if(!/^01\d{8,9}$/.test(d.phone))bad=['phone','Phone must start with 01 and have 10–11 digits.'];
-    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email))bad=['email','Please enter a valid email.'];
+    else if(emailErr(d.email))bad=['email',emailErr(d.email)];
     if(bad){var el=$('#'+bad[0]);el.classList.add('bad');el.insertAdjacentHTML('afterend','<p class="fe">'+bad[1]+'</p>');el.focus();return}
     var b=$('.btn',f);
     var go=function(){busy(b,true,'Saving…');
       api('register',{profile:d,agreed:edit?undefined:true,token:edit?S.session.token:undefined}).then(function(j){saveSession({token:j.token,profile:j.profile});viewBook()},function(err){busy(b,false);fail(err)})};
     // New account: terms popup with tick box first. Editing: surcharge confirmation.
-    edit?editSheet(go):termsSheet(go);
+    // New account: terms, then email verification, then the account is created. Editing: surcharge confirmation only.
+    edit?editSheet(go):termsSheet(function(){verifySheet(d)});
   });
 }
 
